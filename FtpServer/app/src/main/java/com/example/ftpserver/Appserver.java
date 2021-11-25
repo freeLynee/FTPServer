@@ -105,6 +105,13 @@ public class Appserver implements Runnable {
     }
 
     public void transferType(String str) {
+
+        if(!login){
+            control_pw.println("331 no Login");
+            control_pw.flush();
+            return;
+        }
+
         if (str.equals("I")) {
             type = TYPE_BINARY;
             control_pw.println("200 Type set to I.");//type设置成功的返回码
@@ -132,6 +139,13 @@ public class Appserver implements Runnable {
 
 
     public void PORT(String parm) throws IOException {//来自客户端的命令形式为：PORT h1,h2,h3,h4,p1,p2
+
+        if(!login){
+            control_pw.println("331 no Login");
+            control_pw.flush();
+            return;
+        }
+
         try {
 
             StringTokenizer st = new StringTokenizer(parm, ",");//按逗号分隔
@@ -196,6 +210,13 @@ public class Appserver implements Runnable {
     }
 
     public void PASV() throws IOException {
+
+        if(!login){
+            control_pw.println("331 no Login");
+            control_pw.flush();
+            return;
+        }
+
         if (pasvFlag) pasvServer.close();
 
         pasv_port = 7890;//被动模式服务器自动分配端口,会从ui界面输入要分配的随机端口，目前值暂定
@@ -292,6 +313,12 @@ public class Appserver implements Runnable {
 
     public void LIST(String listPath){
 
+        if(!login){
+            control_pw.println("331 no Login");
+            control_pw.flush();
+            return;
+        }
+
         String tempPath = path + listPath;
         File f =new File(tempPath);
         if( ! f.exists()){
@@ -337,6 +364,13 @@ public class Appserver implements Runnable {
     }
 
     public void QUIT() throws IOException {
+
+        if(!login){
+            control_pw.println("331 no Login");
+            control_pw.flush();
+            return;
+        }
+
         control_pw.println("disconnect");
         control_pw.flush();
         data_port.close();
@@ -349,6 +383,12 @@ public class Appserver implements Runnable {
 
 
     public void CWD(String newpath){//需要传入目录地址
+
+        if(!login){
+            control_pw.println("331 no Login");
+            control_pw.flush();
+            return;
+        }
 
         currentPath =  path + newpath;//path为服务器主目录
         File f = new File(currentPath);
@@ -363,6 +403,13 @@ public class Appserver implements Runnable {
     }
 
     public void CDUP() {
+
+        if(!login){
+            control_pw.println("331 no Login");
+            control_pw.flush();
+            return;
+        }
+
         currentPath = path;//切换到服务器主目录
         control_pw.println("250 current path is" + currentPath);
         control_pw.flush();
@@ -370,6 +417,12 @@ public class Appserver implements Runnable {
     }
 
     public void DELE(String filename){
+
+        if(!login){
+            control_pw.println("331 no Login");
+            control_pw.flush();
+            return;
+        }
 
         if(anonymous){
             control_pw.println("530 anonymous not allow");
@@ -395,6 +448,7 @@ public class Appserver implements Runnable {
     }
 
     public int createFolder(String folderPath) {//在安卓手机本地创建文件夹
+
         File appDir = new File(path + folderPath);
         System.out.println("创建文件在 " + appDir);
 
@@ -407,6 +461,13 @@ public class Appserver implements Runnable {
     }
 
     public void MKD(String newFolderPath){//创建folder，参数为路径
+
+        if(!login){
+            control_pw.println("331 no Login");
+            control_pw.flush();
+            return;
+        }
+
         if(anonymous){
             control_pw.println("530 anonymous not allow");
             control_pw.flush();
@@ -423,6 +484,13 @@ public class Appserver implements Runnable {
     }
 
     public void RMD(String folderPath){
+
+        if(!login){
+            control_pw.println("331 no Login");
+            control_pw.flush();
+            return;
+        }
+
         if(anonymous){
             control_pw.println("530 anonymous not allow");
             control_pw.flush();
@@ -463,12 +531,26 @@ public class Appserver implements Runnable {
 
 
     public void NOOP(){
+
+        if(!login){
+            control_pw.println("331 no Login");
+            control_pw.flush();
+            return;
+        }
+
         control_pw.println("200 OK");
         control_pw.flush();
     }
 
 
     public void RNFR(String targetFile){
+
+        if(!login){
+            control_pw.println("331 no Login");
+            control_pw.flush();
+            return;
+        }
+
         if(anonymous){
             control_pw.println("530 anonymous not allow");
             control_pw.flush();
@@ -485,6 +567,12 @@ public class Appserver implements Runnable {
     }
 
     public void RNTO(String newFileName){
+
+        if(!login){
+            control_pw.println("331 no Login");
+            control_pw.flush();
+            return;
+        }
 
         if(anonymous){
             control_pw.println("530 anonymous not allow");
@@ -511,12 +599,6 @@ public class Appserver implements Runnable {
         String [] com = command.trim().split(" ");
         System.out.println(command);
 
-        if(!login){
-            control_pw.println("331 no Login");
-            control_pw.flush();
-            return;
-        }
-
         switch (com[0]) {
 
             case "USER":
@@ -534,6 +616,11 @@ public class Appserver implements Runnable {
             case "PASS":
                 if(com.length != 2){
                     control_pw.println("500 wrong format");
+                    control_pw.flush();
+                    break;
+                }
+                if(this.username == null){
+                    control_pw.println("500 what username");
                     control_pw.flush();
                     break;
                 }
