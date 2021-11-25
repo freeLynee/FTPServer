@@ -74,7 +74,7 @@ public class FirstFragment extends Fragment {
                         Editable pasv_port = binding.pasvPort.getText();
 
                         Appserver ft=new Appserver();
-                        ft.login("pikachu","pikachu");
+                        ft.run();
 
                     }
                 }).start();
