@@ -75,22 +75,21 @@ public class Appserver implements Runnable {
         this.Users.add(new UserInfo("test","test"));//默认用户
         this.BlackList.add(new UserInfo("pikachu","pikachu"));//非法用户
 
+        try {
+            control_server = new ServerSocket(control_port);
+            System.out.println("Server等待连接中.....");
+            control_socket = control_server.accept();//服务器套接字（接受登录信息，命令等）
+            System.out.println("Server连接成功");
+            System.out.println(path);
+            isConnected=true;
+            control_pw=new PrintWriter(new OutputStreamWriter(control_socket.getOutputStream()));//输出流
+            control_br=new BufferedReader(new InputStreamReader(control_socket.getInputStream()));//输入流
 
-//        try {
-//            control_server = new ServerSocket(control_port);
-//            System.out.println("Server等待连接中.....");
-//            control_socket = control_server.accept();//服务器套接字（接受登录信息，命令等）
-//            System.out.println("Server连接成功");
-//            System.out.println(path);
-//            isConnected=true;
-//            control_pw=new PrintWriter(new OutputStreamWriter(control_socket.getOutputStream()));//输出流
-//            control_br=new BufferedReader(new InputStreamReader(control_socket.getInputStream()));//输入流
-//
-//        }catch (IOException e){
-//            e.printStackTrace();
-//        }
-//        control_pw.println("200 successful connection");//表示连接成功返回码为200
-//        control_pw.flush();
+        }catch (IOException e){
+            e.printStackTrace();
+        }
+        control_pw.println("200 successful connection");//表示连接成功返回码为200
+        control_pw.flush();
     }
 
 
@@ -371,6 +370,13 @@ public class Appserver implements Runnable {
     }
 
     public void DELE(String filename){
+
+        if(anonymous){
+            control_pw.println("530 anonymous not allow");
+            control_pw.flush();
+            return;
+        }
+
         File f =new File(currentPath + "/" + filename);
         //一些判断
         if(!f.exists()){
@@ -401,6 +407,11 @@ public class Appserver implements Runnable {
     }
 
     public void MKD(String newFolderPath){//创建folder，参数为路径
+        if(anonymous){
+            control_pw.println("530 anonymous not allow");
+            control_pw.flush();
+            return;
+        }
 
         if(createFolder(newFolderPath) == 0){
             control_pw.println("257 folder successfully created");
@@ -412,6 +423,11 @@ public class Appserver implements Runnable {
     }
 
     public void RMD(String folderPath){
+        if(anonymous){
+            control_pw.println("530 anonymous not allow");
+            control_pw.flush();
+            return;
+        }
 
         File f =new File(path+folderPath);
 
@@ -423,7 +439,7 @@ public class Appserver implements Runnable {
         }
 
         File [] files = f.listFiles();
-        for(int i=0;i < files.length;i++){
+        for(int i=0;i < files.length;i++){//递归删除文件和可能存在的子目录
             if(files[i].isFile()){
                 files[i].delete();
                 System.out.println(files[i].getAbsolutePath());
@@ -432,6 +448,8 @@ public class Appserver implements Runnable {
                 System.out.println(files[i].getPath());
             }
         }
+
+        //文件夹下的文件和子目录删除完后删除文件夹本身
         if(f.delete()){
             System.out.println("文件夹删除成功");
             control_pw.println("250 successfully delete dir");
@@ -441,8 +459,8 @@ public class Appserver implements Runnable {
             control_pw.println("delete dir failure");
             control_pw.flush();
         }
-
     }
+
 
     public void NOOP(){
         control_pw.println("200 OK");
@@ -451,6 +469,11 @@ public class Appserver implements Runnable {
 
 
     public void RNFR(String targetFile){
+        if(anonymous){
+            control_pw.println("530 anonymous not allow");
+            control_pw.flush();
+            return;
+        }
         File target = new File(currentPath + targetFile);
         if(!target.exists() || target.isDirectory()){
             System.out.println("这是文件夹或者该文件不存在");
@@ -462,6 +485,18 @@ public class Appserver implements Runnable {
     }
 
     public void RNTO(String newFileName){
+
+        if(anonymous){
+            control_pw.println("530 anonymous not allow");
+            control_pw.flush();
+            return;
+        }
+
+        if(target == null){//必须经过RNFR指定重命名的文件后才能使用此命令
+            control_pw.println("530 no target file");
+            control_pw.flush();
+            return;
+        }
         File target = new File(this.target);
         if(!target.exists() || target.isDirectory()){
             System.out.println("这是文件夹或者该文件不存在");
