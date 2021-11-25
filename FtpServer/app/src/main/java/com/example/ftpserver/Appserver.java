@@ -1,13 +1,13 @@
 package com.example.ftpserver;
 
 
+import android.renderscript.ScriptIntrinsicYuvToRGB;
 import android.text.Editable;
 
 import com.blankj.utilcode.util.PathUtils;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
-import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
@@ -19,7 +19,6 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
-import java.io.UnsupportedEncodingException;
 import java.net.Inet4Address;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
@@ -34,43 +33,41 @@ import java.util.Random;
 import java.util.StringTokenizer;
 
 
-public class Appserver implements Runnable {
+public class Appserver implements Runnable{
 
     //文件传输格式
-    private final int TYPE_BINARY = 0;
-    private final int TYPE_ASCII = 1;
+    private final int TYPE_BINARY=0;
+    private final int TYPE_ASCII=1;
 
 
-    private ServerSocket control_server, pasvServer;//命令连接，被动数据连接的server
-    private Socket control_socket = null;//命令连接socket
+    private ServerSocket control_server,pasvServer;//命令连接，被动数据连接的server
+    private Socket control_socket=null;//命令连接socket
 
-    private BufferedReader control_br = null;
-    private PrintWriter control_pw = null;
+    private BufferedReader control_br=null;
+    private PrintWriter control_pw=null;
 
-    private Socket data_port, data_pasv;//主动和被动的数据连接
-    private OutputStream data_os = null;
-    private InputStream data_is = null;
+    private Socket data_port,data_pasv;//主动和被动的数据连接
+    private OutputStream data_os=null;
+    private InputStream data_is=null;
 
-    public static String path = "/storage/emulated/0/Android/data/com.example.ftpserver/files";//服务器在安卓本地存放文件的位置：/storage/emulated/0/Android/data/com.example.ftpserver/files
-    private boolean isConnected = false;
-    private String username = "";
+    public static String path = "/storage/emulated/0/Android/FTP/FtpServer";//服务器在安卓本地存放文件的位置：/storage/emulated/0/Android/data/com.example.ftpserver/files
+    private boolean isConnected=false;
+    private String username="";
     private String target;
-    private boolean login, anonymous, pasvFlag, portFlag;
+    private boolean login,anonymous,pasvFlag,portFlag;
 
-    private String currentPath = path;
-    private int control_port, pasv_port, type;//pasv_port为被动模式服务器的随机端口，type为文件格式
+    private String currentPath=path;
+    private int control_port,pasv_port,type;//pasv_port为被动模式服务器的随机端口，type为文件格式
 
-
-    private  List<UserInfo> Users = new ArrayList<UserInfo>();
+    private List<UserInfo> Users = new ArrayList<UserInfo>();
     private  List<UserInfo> BlackList = new ArrayList<UserInfo>();
 
-
-    Appserver() {
-        this.login = false;//登陆相关
-        this.anonymous = false;//用于控制匿名用户权限
-        this.pasvFlag = false;
-        this.portFlag = false;
-        this.control_port = 8080;//默认的21命令连接端口
+    Appserver(){
+        this.login=false;//登陆相关
+        this.anonymous=false;//用于控制匿名用户权限
+        this.pasvFlag=false;
+        this.portFlag=false;
+        this.control_port=8080;//默认的21命令连接端口
 
         this.Users.add(new UserInfo("test","test"));//默认用户
         this.BlackList.add(new UserInfo("pikachu","pikachu"));//非法用户
@@ -92,8 +89,6 @@ public class Appserver implements Runnable {
         control_pw.flush();
     }
 
-
-
     public void createFile(String path) throws IOException {//在本地创建文件的方法，参数为新文件路径
         File f = new File(path);
         if (!f.exists()) {
@@ -105,24 +100,19 @@ public class Appserver implements Runnable {
     }
 
     public void transferType(String str) {
-
-        if (str.equals("I")) {
+        if (str.equals("Binary")) {
             type = TYPE_BINARY;
-            control_pw.println("200 Type set to I.");//type设置成功的返回码
-
-        } else if (str.equals("A")) {
+            control_pw.println("200 Binary.");//type设置成功的返回码
+        } else if (str.equals("ASCII")) {
             type = TYPE_ASCII;
-            control_pw.println("200 Type set to A.");
-
+            control_pw.println("200 ASCII.");
         } else {
             control_pw.println("500 Error Type");
-
         }
         control_pw.flush();
     }
 
-
-    public String getFilename(String str) {//从路径中抽取文件名
+    public String getFilename(String str) {
         int i = 0, pos = 0;
         while (true) {
             if (str.charAt(i) == '/') {
@@ -134,9 +124,128 @@ public class Appserver implements Runnable {
         return str.substring(pos);
     }
 
+    public  void loadSingleFile(String client_filepath) throws IOException {
+
+        String filePath = path + File.separator + client_filepath;
+
+        if (type == TYPE_ASCII) {
+            try {
+                BufferedReader fin;
+                PrintWriter dataOutPut = null;
+                if (portFlag) {
+                    dataOutPut = new PrintWriter(data_port.getOutputStream(), true);
+                }
+                if (pasvFlag) {
+                    dataOutPut = new PrintWriter(data_pasv.getOutputStream(), true);
+                }
+                try {
+                    fin = new BufferedReader(new FileReader(filePath));
+                    control_pw.println("150 Opening ASCII mode data connection for " + getFilename(filePath));
+                    control_pw.flush();
+                } catch (FileNotFoundException e) {
+                    control_pw.println("550 Can't open " + getFilename(filePath) + ' ' + e.getMessage() + '\n');
+                    control_pw.flush();
+                    return;
+                }
+                String line;
+                while ((line = fin.readLine()) != null) {
+                    if (dataOutPut != null) {
+                        dataOutPut.println(line);
+                    }
+                }
+                fin.close();
+                if (dataOutPut != null) {
+                    dataOutPut.close();
+                }
+                control_pw.println("226 Transfer complete.");
+                control_pw.flush();
+                if (portFlag) {
+                    portFlag = false;
+                    data_port.close();
+                }
+                if (pasvFlag) {
+                    data_pasv.close();
+                    pasvServer.close();
+                    pasvFlag = false;
+                }
+            } catch (Exception e) {
+                try {
+                    data_pasv.close();
+                    data_port.close();
+                    pasvFlag = false;
+                    portFlag = false;
+                    pasvServer.close();
+                } catch (IOException e1) {
+                    e1.printStackTrace();
+                }
+            }
+        }
+
+        if (type == TYPE_BINARY) {
+            try {
+                OutputStream dos = null;
+                if (portFlag) {
+                    dos = data_port.getOutputStream();
+                }
+
+                if (pasvFlag) {
+                    dos = data_pasv.getOutputStream();
+                }
+                FileInputStream dis;
+                try {
+                    dis = new FileInputStream(filePath);
+                    control_pw.println("150 Opening BINARY mode data connection for " + getFilename(filePath) + ".");
+                    control_pw.flush();
+                } catch (FileNotFoundException e) {
+                    control_pw.println("550 Can't open " + getFilename(filePath) + ": No such file or directory");
+                    control_pw.flush();
+                    return;
+                }
+                final int BUF_SIZE = 8192;
+                byte[] buf = new byte[BUF_SIZE];
+                while (true) {
+                    int read;
+                    read = dis.read(buf);
+                    if (read == -1) {
+                        break;
+                    }
+                    if (dos != null) {
+                        dos.write(buf, 0, read);
+                    }
+                }
+                if (dos != null) {
+                    dos.close();
+                    dos.flush();
+                }
+                dis.close();
+                control_pw.println("226 Transfer complete.");
+                control_pw.flush();
+                if (pasvFlag) {
+                    data_pasv.close();
+                    pasvServer.close();
+                    pasvFlag = false;
+                }
+                if (portFlag) {
+                    data_port.close();
+                    portFlag = false;
+                }
+            } catch (Exception e) {
+                try {
+                    data_pasv.close();
+                    data_port.close();
+                    pasvFlag = false;
+                    portFlag = false;
+                    pasvServer.close();
+                } catch (IOException e1) {
+                    e1.printStackTrace();
+
+                }
+            }
+        }
+    }
+
 
     public void PORT(String parm) throws IOException {//来自客户端的命令形式为：PORT h1,h2,h3,h4,p1,p2
-
         try {
 
             StringTokenizer st = new StringTokenizer(parm, ",");//按逗号分隔
@@ -145,7 +254,7 @@ public class Appserver implements Runnable {
             char[] temp;
             while (st.hasMoreTokens()) {
                 parmArray[i] = st.nextToken();
-                temp = parmArray[i].toCharArray();
+                temp= parmArray[i].toCharArray();
                 for (int j = 0; j < parmArray[i].length(); j++) {
                     if (!Character.isDigit(temp[j])) {
                         control_pw.println("530 wrong format");
@@ -164,7 +273,7 @@ public class Appserver implements Runnable {
 
             String portIp = parmArray[0] + "." + parmArray[1] + "." + parmArray[2] + "." + parmArray[3];//客户端ip
             int portPort = Integer.parseInt(parmArray[4]) * 256 + Integer.parseInt(parmArray[5]);//客户端随机分配的数据连接端口
-            System.out.println(portIp + " " + portPort);
+            System.out.println(portIp + " "+portPort);
             if (pasvFlag) {
                 data_pasv.close();
                 pasvServer.close();
@@ -179,6 +288,8 @@ public class Appserver implements Runnable {
                 control_pw.println("200 receiveOK.");
                 control_pw.flush();
                 data_port = new Socket(portIp, portPort);
+                data_is = data_port.getInputStream();
+                data_os = data_port.getOutputStream();
                 portFlag = true;
                 System.out.println("PORT successfully");
             } catch (Exception e) {
@@ -201,8 +312,7 @@ public class Appserver implements Runnable {
     }
 
     public void PASV() throws IOException {
-
-        if (pasvFlag) pasvServer.close();
+        if (pasvFlag)pasvServer.close();
 
         pasv_port = 7890;//被动模式服务器自动分配端口,会从ui界面输入要分配的随机端口，目前值暂定
 
@@ -216,33 +326,49 @@ public class Appserver implements Runnable {
             parmArray[i] = st.nextToken();
             i++;
         }
-        int p1 = pasv_port / 256;
-        int p2 = pasv_port % 256;
+        int p1=pasv_port / 256;
+        int p2= pasv_port % 256;
         control_pw.println("227 " + parmArray[0] + "," + parmArray[1] + "," + parmArray[2] + "," + parmArray[3] + "," + p1 + "," + p2);
         control_pw.flush();
         System.out.println("return OK");
 
         try {
             data_pasv = pasvServer.accept();
+            data_is = data_pasv.getInputStream();
+            data_os = data_pasv.getOutputStream();
+            System.out.println("connect OK");
         } catch (IOException e) {
             return;
         }
-        System.out.println("connect OK");
         pasvFlag = true;
     }
 
+    public void receiveSingleFile(String path) throws IOException {
+        File file = new File(path);
+        file.createNewFile();
+        System.out.println("new file Ok");
+        BufferedWriter bw = new BufferedWriter(new FileWriter(file));
+        BufferedReader br = new BufferedReader(new InputStreamReader(data_is));
+        String data = br.readLine();
+        while(data!=null){
+            if(data.equals("end"))
+                break;
+            System.out.println("enter");
+            bw.write(data);
+            data = br.readLine();
+        }
+        bw.flush();
+    }
 
     public void login(String username, String password) {
-        System.out.println("登陆中......");
+        System.out.println("登陆中......"+username+password);
         if(login){
-
             control_pw.println("230 already login");
             control_pw.flush();
             return;
         }
 
         if (username == null || password == null) {
-
             control_pw.println("500 username or password empty");
             control_pw.flush();
             return;
@@ -271,11 +397,13 @@ public class Appserver implements Runnable {
         for(UserInfo u : Users){
 
             if (username.trim().equals(u.getUsername())) {
+                System.out.println("find the user");
+                System.out.println(u.getPassword());
                 if (password.trim().equals(u.getPassword())) {
                     login = true;//登陆成功
-
-                        control_pw.println("200 login successfully");
-                        control_pw.flush();
+                    control_pw.println("230 login successfully");
+                    control_pw.flush();
+                    System.out.println("find password");
                 } else {//密码不对
                     login = false;
                     control_pw.println("500 wrong password");
@@ -283,7 +411,6 @@ public class Appserver implements Runnable {
                     return;
                 }
             } else {//用户不存在时
-
                 login = false;
                 control_pw.println("500 no this user");
                 control_pw.flush();
@@ -292,8 +419,6 @@ public class Appserver implements Runnable {
         }
 
     }
-
-
 
     public void LIST(String listPath){
 
@@ -352,8 +477,6 @@ public class Appserver implements Runnable {
         pasvServer.close();
     }
 
-
-
     public void CWD(String newpath){//需要传入目录地址
 
         currentPath =  path + newpath;//path为服务器主目录
@@ -369,7 +492,6 @@ public class Appserver implements Runnable {
     }
 
     public void CDUP() {
-
         currentPath = path;//切换到服务器主目录
         control_pw.println("250 current path is" + currentPath);
         control_pw.flush();
@@ -475,16 +597,13 @@ public class Appserver implements Runnable {
         }
     }
 
-
     public void NOOP(){
 
         control_pw.println("200 OK");
         control_pw.flush();
     }
 
-
     public void RNFR(String targetFile){
-
         if(anonymous){
             control_pw.println("530 anonymous not allow");
             control_pw.flush();
@@ -529,6 +648,64 @@ public class Appserver implements Runnable {
 
     }
 
+    public void USER(String username){
+        if (username == null) {
+            control_pw.println("500 username empty");
+            control_pw.flush();
+            return;
+        }
+        if(username.equals("anonymous")){
+            anonymous = true;
+            control_pw.println("331 anonymous user");
+            control_pw.flush();
+            return;
+        }
+        for(UserInfo u : BlackList){//非法用户判断,直接在USER阶段卡掉
+            if (username.trim().equals(u.getUsername())) {
+                login = false;
+                control_pw.println("530 illegal user");
+                control_pw.flush();
+                return;
+            }
+        }
+
+        for(UserInfo u : Users){
+            if (username.trim().equals(u.getUsername())) {
+                System.out.println("find the user");
+                control_pw.println("331 user find");
+                control_pw.flush();
+            } else {//用户不存在时
+                login = false;
+                control_pw.println("500 no this user");
+                control_pw.flush();
+                return;
+            }
+        }
+
+    }
+
+    public void PASS(String password){
+        if(anonymous){
+            login = true;//登陆成功
+            control_pw.println("230 login successfully");
+            control_pw.flush();
+            return;
+        }
+        for(UserInfo u : Users){
+            if (username.trim().equals(u.getUsername())) {
+                if(password.trim().equals(u.getPassword())) {
+                    login = true;//登陆成功
+                    control_pw.println("230 login successfully");
+                    control_pw.flush();
+                }else{//密码错误
+                    control_pw.println("500 wrong password");
+                    control_pw.flush();
+                }
+            }
+        }
+    }
+
+
     public void handleCommand(String command) throws IOException {
         String [] com = command.trim().split(" ");
         System.out.println(command);
@@ -539,11 +716,12 @@ public class Appserver implements Runnable {
                 control_pw.flush();
                 return;
             }
+
             this.username=com[1];
-            control_pw.println("200 OK");//得到用户名返回200表示收到
-            control_pw.flush();
-            System.out.println("user");
+            USER(com[1]);
+            System.out.println(username);
         }
+
         if(com[0].equals("PASS")){
             if(com.length != 2){
                 control_pw.println("500 wrong format");
@@ -555,24 +733,15 @@ public class Appserver implements Runnable {
                 control_pw.flush();
                 return;
             }
-            login(username,com[1]);
-            System.out.println("login successfully");
-        }
-
-        if(!login){
-            control_pw.println("530 not login");
-            control_pw.flush();
-            return;
+            PASS(com[1]);
         }
 
         switch (com[0]) {
 
             case "USER":
-
                 break;
 
             case "PASS":
-
                 break;
 
             case "STOR":
@@ -602,8 +771,8 @@ public class Appserver implements Runnable {
                     break;
                 }
                 transferType(com[1]);
-                control_pw.println("200 OK");
-                control_pw.flush();
+//                control_pw.println("200 OK");
+//                control_pw.flush();
                 break;
 
             case "STRU":
@@ -624,8 +793,8 @@ public class Appserver implements Runnable {
                     break;
                 }
                 LIST(com[1]);
-                control_pw.println("200 OK");
-                control_pw.flush();
+//                control_pw.println("200 OK");
+//                control_pw.flush();
                 break;
 
             case "CDUP":
@@ -697,7 +866,6 @@ public class Appserver implements Runnable {
 
         }
     }
-
 
     public void run(){
         while (true){
