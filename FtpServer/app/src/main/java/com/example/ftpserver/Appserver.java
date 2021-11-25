@@ -106,20 +106,17 @@ public class Appserver implements Runnable {
 
     public void transferType(String str) {
 
-        if(!login){
-            control_pw.println("331 no Login");
-            control_pw.flush();
-            return;
-        }
-
         if (str.equals("I")) {
             type = TYPE_BINARY;
             control_pw.println("200 Type set to I.");//type设置成功的返回码
+
         } else if (str.equals("A")) {
             type = TYPE_ASCII;
             control_pw.println("200 Type set to A.");
+
         } else {
             control_pw.println("500 Error Type");
+
         }
         control_pw.flush();
     }
@@ -139,12 +136,6 @@ public class Appserver implements Runnable {
 
 
     public void PORT(String parm) throws IOException {//来自客户端的命令形式为：PORT h1,h2,h3,h4,p1,p2
-
-        if(!login){
-            control_pw.println("331 no Login");
-            control_pw.flush();
-            return;
-        }
 
         try {
 
@@ -211,12 +202,6 @@ public class Appserver implements Runnable {
 
     public void PASV() throws IOException {
 
-        if(!login){
-            control_pw.println("331 no Login");
-            control_pw.flush();
-            return;
-        }
-
         if (pasvFlag) pasvServer.close();
 
         pasv_port = 7890;//被动模式服务器自动分配端口,会从ui界面输入要分配的随机端口，目前值暂定
@@ -250,24 +235,24 @@ public class Appserver implements Runnable {
     public void login(String username, String password) {
         System.out.println("登陆中......");
         if(login){
-            System.out.println("230 already login");
-//            control_pw.println("already login");
-//            control_pw.flush();
+
+            control_pw.println("230 already login");
+            control_pw.flush();
             return;
         }
 
         if (username == null || password == null) {
-            System.out.println("username or password empty");
-//            control_pw.println("username or password empty");
-//            control_pw.flush();
+
+            control_pw.println("500 username or password empty");
+            control_pw.flush();
             return;
         }
 
         if (username.trim().equals("anonymous") && password.trim().equals("anonymous")) {//匿名用户
             anonymous = true;
             login=true;
-//            control_pw.println("230 anonymous login");
-//            control_pw.flush();
+            control_pw.println("230 anonymous login");
+            control_pw.flush();
             return;
         }
 
@@ -275,9 +260,9 @@ public class Appserver implements Runnable {
             if (username.trim().equals(u.getUsername())) {
                 if (password.trim().equals(u.getPassword())) {
                     login = false;
-                    System.out.println("530 illegal user");
-//                    control_pw.println("530 illegal user");
-//                    control_pw.flush();
+
+                    control_pw.println("530 illegal user");
+                    control_pw.flush();
                     return;
                 }
             }
@@ -287,22 +272,21 @@ public class Appserver implements Runnable {
 
             if (username.trim().equals(u.getUsername())) {
                 if (password.trim().equals(u.getPassword())) {
-                    login = true;
-                    System.out.println("200 login successfully");
-//                        control_pw.println("200 login successfully");
-//                        control_pw.flush();
-                } else {
+                    login = true;//登陆成功
+
+                        control_pw.println("200 login successfully");
+                        control_pw.flush();
+                } else {//密码不对
                     login = false;
-                    System.out.println("wrong password");
-//                    control_pw.println("wrong password");
-//                    control_pw.flush();
+                    control_pw.println("500 wrong password");
+                    control_pw.flush();
                     return;
                 }
-            } else {
-                System.out.println("没有此用户哦");
+            } else {//用户不存在时
+
                 login = false;
-//                control_pw.println("no this user");
-//                control_pw.flush();
+                control_pw.println("500 no this user");
+                control_pw.flush();
                 return;
             }
         }
@@ -312,12 +296,6 @@ public class Appserver implements Runnable {
 
 
     public void LIST(String listPath){
-
-        if(!login){
-            control_pw.println("331 no Login");
-            control_pw.flush();
-            return;
-        }
 
         String tempPath = path + listPath;
         File f =new File(tempPath);
@@ -365,12 +343,6 @@ public class Appserver implements Runnable {
 
     public void QUIT() throws IOException {
 
-        if(!login){
-            control_pw.println("331 no Login");
-            control_pw.flush();
-            return;
-        }
-
         control_pw.println("disconnect");
         control_pw.flush();
         data_port.close();
@@ -383,12 +355,6 @@ public class Appserver implements Runnable {
 
 
     public void CWD(String newpath){//需要传入目录地址
-
-        if(!login){
-            control_pw.println("331 no Login");
-            control_pw.flush();
-            return;
-        }
 
         currentPath =  path + newpath;//path为服务器主目录
         File f = new File(currentPath);
@@ -404,12 +370,6 @@ public class Appserver implements Runnable {
 
     public void CDUP() {
 
-        if(!login){
-            control_pw.println("331 no Login");
-            control_pw.flush();
-            return;
-        }
-
         currentPath = path;//切换到服务器主目录
         control_pw.println("250 current path is" + currentPath);
         control_pw.flush();
@@ -417,12 +377,6 @@ public class Appserver implements Runnable {
     }
 
     public void DELE(String filename){
-
-        if(!login){
-            control_pw.println("331 no Login");
-            control_pw.flush();
-            return;
-        }
 
         if(anonymous){
             control_pw.println("530 anonymous not allow");
@@ -433,17 +387,23 @@ public class Appserver implements Runnable {
         File f =new File(currentPath + "/" + filename);
         //一些判断
         if(!f.exists()){
-            System.out.println("550 no such file");//要删除的文件不存在
+            System.out.println();//要删除的文件不存在
+            control_pw.println("550 no such file");
+            control_pw.flush();
         }
         if (f.isDirectory()){
-            System.out.println("550 is a directory");//要路径指向文件夹
+            control_pw.println("550 is a directory");
+            control_pw.flush();
         }
 
         //开始删除
         if(f.delete()) {
-            System.out.println("250 successfully deleted");
+            control_pw.println("250 successfully deleted");
+            control_pw.flush();
         }else {
-            System.out.println("deleted failed");
+            control_pw.println("530 deleted failed");
+            control_pw.flush();
+
         }
     }
 
@@ -462,12 +422,6 @@ public class Appserver implements Runnable {
 
     public void MKD(String newFolderPath){//创建folder，参数为路径
 
-        if(!login){
-            control_pw.println("331 no Login");
-            control_pw.flush();
-            return;
-        }
-
         if(anonymous){
             control_pw.println("530 anonymous not allow");
             control_pw.flush();
@@ -484,12 +438,6 @@ public class Appserver implements Runnable {
     }
 
     public void RMD(String folderPath){
-
-        if(!login){
-            control_pw.println("331 no Login");
-            control_pw.flush();
-            return;
-        }
 
         if(anonymous){
             control_pw.println("530 anonymous not allow");
@@ -510,20 +458,18 @@ public class Appserver implements Runnable {
         for(int i=0;i < files.length;i++){//递归删除文件和可能存在的子目录
             if(files[i].isFile()){
                 files[i].delete();
-                System.out.println(files[i].getAbsolutePath());
             }else {
                 RMD(folderPath +"/"+ files[i].getName());
-                System.out.println(files[i].getPath());
             }
         }
 
         //文件夹下的文件和子目录删除完后删除文件夹本身
         if(f.delete()){
-            System.out.println("文件夹删除成功");
+
             control_pw.println("250 successfully delete dir");
             control_pw.flush();
         }else {
-            System.out.println("文件夹删除失败");
+
             control_pw.println("delete dir failure");
             control_pw.flush();
         }
@@ -532,24 +478,12 @@ public class Appserver implements Runnable {
 
     public void NOOP(){
 
-        if(!login){
-            control_pw.println("331 no Login");
-            control_pw.flush();
-            return;
-        }
-
         control_pw.println("200 OK");
         control_pw.flush();
     }
 
 
     public void RNFR(String targetFile){
-
-        if(!login){
-            control_pw.println("331 no Login");
-            control_pw.flush();
-            return;
-        }
 
         if(anonymous){
             control_pw.println("530 anonymous not allow");
@@ -558,21 +492,18 @@ public class Appserver implements Runnable {
         }
         File target = new File(currentPath + targetFile);
         if(!target.exists() || target.isDirectory()){
-            System.out.println("这是文件夹或者该文件不存在");
+            control_pw.println("530 target not exist or is dir");//这是文件夹或者该文件不存在
+            control_pw.flush();
             return;
         }
 
         this.target = currentPath +"/"+ targetFile;
-        System.out.println("重命名第一步，已经瞄准好文件" + target);
+        control_pw.println("200");//重命名第一步，已经瞄准好文件
+        control_pw.flush();
+
     }
 
     public void RNTO(String newFileName){
-
-        if(!login){
-            control_pw.println("331 no Login");
-            control_pw.flush();
-            return;
-        }
 
         if(anonymous){
             control_pw.println("530 anonymous not allow");
@@ -587,11 +518,14 @@ public class Appserver implements Runnable {
         }
         File target = new File(this.target);
         if(!target.exists() || target.isDirectory()){
-            System.out.println("这是文件夹或者该文件不存在");
+            control_pw.println("530 target not exist or is dir");
+            control_pw.flush();
+
             return;
         }
         target.renameTo(new File(currentPath+"/"+newFileName));
-        System.out.println("名字修改成功");
+        control_pw.println("200 rename success");
+        control_pw.flush();
 
     }
 
@@ -599,33 +533,46 @@ public class Appserver implements Runnable {
         String [] com = command.trim().split(" ");
         System.out.println(command);
 
+        if(com[0].equals("USER")){
+            if(com.length != 2){
+                control_pw.println("500 wrong format");
+                control_pw.flush();
+                return;
+            }
+            this.username=com[1];
+            control_pw.println("200 OK");//得到用户名返回200表示收到
+            control_pw.flush();
+            System.out.println("user");
+        }
+        if(com[0].equals("PASS")){
+            if(com.length != 2){
+                control_pw.println("500 wrong format");
+                control_pw.flush();
+                return;
+            }
+            if(this.username == null){
+                control_pw.println("500 what username");
+                control_pw.flush();
+                return;
+            }
+            login(username,com[1]);
+            System.out.println("login successfully");
+        }
+
+        if(!login){
+            control_pw.println("530 not login");
+            control_pw.flush();
+            return;
+        }
+
         switch (com[0]) {
 
             case "USER":
-                if(com.length != 2){
-                    control_pw.println("500 wrong format");
-                    control_pw.flush();
-                    break;
-                }
-                this.username=com[1];
-                control_pw.println("200 OK");//得到用户名返回200表示收到
-                control_pw.flush();
-                System.out.println("user");
+
                 break;
 
             case "PASS":
-                if(com.length != 2){
-                    control_pw.println("500 wrong format");
-                    control_pw.flush();
-                    break;
-                }
-                if(this.username == null){
-                    control_pw.println("500 what username");
-                    control_pw.flush();
-                    break;
-                }
-                login(username,com[1]);
-                System.out.println("login successfully");
+
                 break;
 
             case "STOR":
