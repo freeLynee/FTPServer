@@ -38,6 +38,7 @@ public class Appserver implements Runnable{
     //文件传输格式
     private final int TYPE_BINARY=0;
     private final int TYPE_ASCII=1;
+    public String operation ="在操作";
 
 
     private ServerSocket control_server,pasvServer;//命令连接，被动数据连接的server
@@ -50,7 +51,7 @@ public class Appserver implements Runnable{
     private OutputStream data_os=null;
     private InputStream data_is=null;
 
-    public static String path = "/storage/emulated/0/Android/FTP/FtpServer";//服务器在安卓本地存放文件的位置：/storage/emulated/0/Android/data/com.example.ftpserver/files
+    public static String path = "/storage/emulated/0/AB";//服务器在安卓本地存放文件的位置：/storage/emulated/0/Android/data/com.example.ftpserver/files
     private boolean isConnected=false;
     private String username="";
     private String target;
@@ -89,6 +90,7 @@ public class Appserver implements Runnable{
         control_pw.flush();
     }
 
+
     public void createFile(String path) throws IOException {//在本地创建文件的方法，参数为新文件路径
         File f = new File(path);
         if (!f.exists()) {
@@ -124,22 +126,94 @@ public class Appserver implements Runnable{
         return str.substring(pos);
     }
 
+
+public void sendSingleFile(String client_filepath) throws IOException {
+    String filePath = currentPath + client_filepath;
+    System.out.println("文件地址："+filePath);
+
+    File file = new File(filePath);
+    if(!file.exists()){
+        control_pw.println("550 Can't open " + getFilename(filePath)  +'\n');
+        control_pw.flush();
+        return;
+    }
+
+
+    try {
+        BufferedReader br;
+        BufferedWriter bw;
+        if (portFlag) {
+            data_os = data_port.getOutputStream();
+        }
+        if (pasvFlag) {
+            data_os = data_pasv.getOutputStream();
+        }
+        try {
+            br = new BufferedReader(new FileReader(filePath));
+            control_pw.println("150 Opening ASCII mode data connection for " + getFilename(filePath));
+            control_pw.flush();
+        } catch (FileNotFoundException e) {
+            control_pw.println("550 Can't open " + getFilename(filePath) + ' ' + e.getMessage() + '\n');
+            control_pw.flush();
+            return;
+        }
+
+        bw = new BufferedWriter(new OutputStreamWriter(data_os));
+        String line;
+        String data="";
+        line = br.readLine();
+        while (line != null ) {
+            System.out.println("in while oppo");
+            data = data +  "\n" +line;
+            line = br.readLine();
+        }
+        data = data + "\n" + "END" + "\n";
+        bw.write(data);
+
+        bw.flush();
+
+        System.out.println("文件数据："+data);
+        if(control_socket.isConnected()){
+            System.out.println("没断掉");
+        }else{
+            System.out.println("断掉了");
+        }
+        control_pw.println("226 Transfer complete.");
+        control_pw.flush();
+
+    }catch (Exception e) {
+//        try {
+//            data_pasv.close();
+//            data_port.close();
+//            pasvFlag = false;
+//            portFlag = false;
+//            pasvServer.close();
+//        } catch (IOException e1) {
+//            e1.printStackTrace();
+//        }
+        e.printStackTrace();
+        }
+
+
+}
     public  void loadSingleFile(String client_filepath) throws IOException {
 
-        String filePath = path + File.separator + client_filepath;
+        String filePath = currentPath+ File.separator + client_filepath;
+        createFile(filePath);
 
         if (type == TYPE_ASCII) {
             try {
-                BufferedReader fin;
-                PrintWriter dataOutPut = null;
+                BufferedWriter fin;
+                BufferedReader br = null;
+
                 if (portFlag) {
-                    dataOutPut = new PrintWriter(data_port.getOutputStream(), true);
+                    data_is = data_port.getInputStream();
                 }
                 if (pasvFlag) {
-                    dataOutPut = new PrintWriter(data_pasv.getOutputStream(), true);
+                    data_is = data_pasv.getInputStream();
                 }
                 try {
-                    fin = new BufferedReader(new FileReader(filePath));
+                    fin = new BufferedWriter(new FileWriter(filePath));
                     control_pw.println("150 Opening ASCII mode data connection for " + getFilename(filePath));
                     control_pw.flush();
                 } catch (FileNotFoundException e) {
@@ -147,27 +221,39 @@ public class Appserver implements Runnable{
                     control_pw.flush();
                     return;
                 }
+                br = new BufferedReader(new InputStreamReader(data_is));
                 String line;
-                while ((line = fin.readLine()) != null) {
-                    if (dataOutPut != null) {
-                        dataOutPut.println(line);
-                    }
+                String data="";
+                line = br.readLine();
+                while (!line.equals("END") ) {
+                    System.out.println("in while oppo");
+                    data = data +  "\n" +line;
+                    line = br.readLine();
                 }
+
+                fin.write(data);
+                System.out.println("OPPO VIVO HUAWEI IPHONE XIAOMI");
+                fin.flush();
                 fin.close();
-                if (dataOutPut != null) {
-                    dataOutPut.close();
+
+                if(control_socket.isConnected()){
+                    System.out.println("没断掉");
+                }else{
+                    System.out.println("断掉了");
                 }
                 control_pw.println("226 Transfer complete.");
                 control_pw.flush();
-                if (portFlag) {
-                    portFlag = false;
-                    data_port.close();
-                }
-                if (pasvFlag) {
-                    data_pasv.close();
-                    pasvServer.close();
-                    pasvFlag = false;
-                }
+                System.out.println("oppo");
+
+//                if (portFlag) {
+//                    portFlag = false;
+//                    data_port.close();
+//                }
+//                if (pasvFlag) {
+//                    data_pasv.close();
+//                    pasvServer.close();
+//                    pasvFlag = false;
+//                }
             } catch (Exception e) {
                 try {
                     data_pasv.close();
@@ -183,52 +269,56 @@ public class Appserver implements Runnable{
 
         if (type == TYPE_BINARY) {
             try {
-                OutputStream dos = null;
-                if (portFlag) {
-                    dos = data_port.getOutputStream();
-                }
+                BufferedWriter fin;
+                BufferedReader br = null;
 
-                if (pasvFlag) {
-                    dos = data_pasv.getOutputStream();
+                if (portFlag) {
+                    data_is = data_port.getInputStream();
                 }
-                FileInputStream dis;
+                if (pasvFlag) {
+                    data_is = data_pasv.getInputStream();
+                }
                 try {
-                    dis = new FileInputStream(filePath);
-                    control_pw.println("150 Opening BINARY mode data connection for " + getFilename(filePath) + ".");
+                    fin = new BufferedWriter(new FileWriter(filePath));
+                    control_pw.println("150 Opening ASCII mode data connection for " + getFilename(filePath));
                     control_pw.flush();
                 } catch (FileNotFoundException e) {
-                    control_pw.println("550 Can't open " + getFilename(filePath) + ": No such file or directory");
+                    control_pw.println("550 Can't open " + getFilename(filePath) + ' ' + e.getMessage() + '\n');
                     control_pw.flush();
                     return;
                 }
-                final int BUF_SIZE = 8192;
-                byte[] buf = new byte[BUF_SIZE];
-                while (true) {
-                    int read;
-                    read = dis.read(buf);
-                    if (read == -1) {
-                        break;
-                    }
-                    if (dos != null) {
-                        dos.write(buf, 0, read);
-                    }
+                br = new BufferedReader(new InputStreamReader(data_is));
+                String line;
+                String data="";
+                line = br.readLine();
+                while (!line.equals("END") ) {
+                    System.out.println("in while oppo");
+                    data = data +  "\n" +line;
+                    line = br.readLine();
                 }
-                if (dos != null) {
-                    dos.close();
-                    dos.flush();
+
+                fin.write(data);
+                System.out.println("OPPO VIVO HUAWEI IPHONE XIAOMI");
+                fin.flush();
+                fin.close();
+                if(control_socket.isConnected()){
+                    System.out.println("没断掉");
+                }else{
+                    System.out.println("断掉了");
                 }
-                dis.close();
                 control_pw.println("226 Transfer complete.");
                 control_pw.flush();
-                if (pasvFlag) {
-                    data_pasv.close();
-                    pasvServer.close();
-                    pasvFlag = false;
-                }
-                if (portFlag) {
-                    data_port.close();
-                    portFlag = false;
-                }
+
+//
+//                if (portFlag) {
+//                    portFlag = false;
+//                    data_port.close();
+//                }
+//                if (pasvFlag) {
+//                    data_pasv.close();
+//                    pasvServer.close();
+//                    pasvFlag = false;
+//                }
             } catch (Exception e) {
                 try {
                     data_pasv.close();
@@ -238,7 +328,6 @@ public class Appserver implements Runnable{
                     pasvServer.close();
                 } catch (IOException e1) {
                     e1.printStackTrace();
-
                 }
             }
         }
@@ -285,14 +374,16 @@ public class Appserver implements Runnable{
             }
             try {
                 //Thread.sleep(3000);//此时服务器sleep等待客户端accept后再进行连接
-                control_pw.println("200 receiveOK.");
+                control_pw.println("150 receiveOK.");
                 control_pw.flush();
                 data_port = new Socket(portIp, portPort);
                 data_is = data_port.getInputStream();
                 data_os = data_port.getOutputStream();
                 portFlag = true;
                 System.out.println("PORT successfully");
+
             } catch (Exception e) {
+                e.printStackTrace();
                 control_pw.println("425 fail to start port mode");
                 portFlag = false;
                 control_pw.flush();
@@ -343,25 +434,12 @@ public class Appserver implements Runnable{
         pasvFlag = true;
     }
 
-    public void receiveSingleFile(String path) throws IOException {
-        File file = new File(path);
-        file.createNewFile();
-        System.out.println("new file Ok");
-        BufferedWriter bw = new BufferedWriter(new FileWriter(file));
-        BufferedReader br = new BufferedReader(new InputStreamReader(data_is));
-        String data = br.readLine();
-        while(data!=null){
-            if(data.equals("end"))
-                break;
-            System.out.println("enter");
-            bw.write(data);
-            data = br.readLine();
-        }
-        bw.flush();
-    }
+
+
 
     public void login(String username, String password) {
         System.out.println("登陆中......"+username+password);
+
         if(login){
             control_pw.println("230 already login");
             control_pw.flush();
@@ -423,24 +501,30 @@ public class Appserver implements Runnable{
     public void LIST(String listPath){
 
         String tempPath = path + listPath;
+        System.out.println("list的路径" +tempPath);
         File f =new File(tempPath);
         if( ! f.exists()){
-            control_pw.println("450");//找不到对应文件或文件夹
+            control_pw.println("450 no this file");//找不到对应文件或文件夹
             control_pw.flush();
         }
 
-        if(f.isFile()){//如果是文件返回 “300 文件名”
+        if(f.isFile() && !f.isDirectory()){//如果是文件返回 “300 文件名”
             control_pw.println("300 "+f.getName());
             control_pw.flush();
             return;
 
         }else { //如果是文件夹返回 “200 文件名1 文件名2 文件名3”
             File[] files = f.listFiles();
+            if(files == null){
+                control_pw.println("200 empty");
+                control_pw.flush();
+                return;
+            }
             StringBuilder result =new StringBuilder();
             result.append("200 ");
 
             for(int i =0; i<files.length;i++){
-                result.append(files[i].getName()).append(" ");
+                result.append(files[i].getName()).append(",");
             }
             control_pw.println(result.toString());
             control_pw.flush();
@@ -479,14 +563,16 @@ public class Appserver implements Runnable{
 
     public void CWD(String newpath){//需要传入目录地址
 
-        currentPath =  path + newpath;//path为服务器主目录
+        String tempPath =  currentPath  + newpath;//path为服务器主目录
         File f = new File(currentPath);
 
-        if (f.isDirectory() || f.exists() && !f.isFile()) {
+        if (f.isDirectory() && f.exists()) {
             control_pw.println("250 new path is" + currentPath);
             control_pw.flush();
+            currentPath = tempPath;
+            System.out.println("CWD到了"+currentPath);
         }else {
-            control_pw.println("550");
+            control_pw.println("550 is file ");
             control_pw.flush();//如果新路径指向文件，或者找不到路径会返回550
         }
     }
@@ -506,15 +592,11 @@ public class Appserver implements Runnable{
             return;
         }
 
-        File f =new File(currentPath + "/" + filename);
+        File f =new File(currentPath + filename);
         //一些判断
         if(!f.exists()){
             System.out.println();//要删除的文件不存在
             control_pw.println("550 no such file");
-            control_pw.flush();
-        }
-        if (f.isDirectory()){
-            control_pw.println("550 is a directory");
             control_pw.flush();
         }
 
@@ -531,7 +613,7 @@ public class Appserver implements Runnable{
 
     public int createFolder(String folderPath) {//在安卓手机本地创建文件夹
 
-        File appDir = new File(path + folderPath);
+        File appDir = new File(currentPath  +folderPath);
         System.out.println("创建文件在 " + appDir);
 
         if (!appDir.exists()) {
@@ -599,7 +681,7 @@ public class Appserver implements Runnable{
 
     public void NOOP(){
 
-        control_pw.println("200 OK");
+        control_pw.println("200 NOOP");
         control_pw.flush();
     }
 
@@ -609,15 +691,16 @@ public class Appserver implements Runnable{
             control_pw.flush();
             return;
         }
+
         File target = new File(currentPath + targetFile);
-        if(!target.exists() || target.isDirectory()){
-            control_pw.println("530 target not exist or is dir");//这是文件夹或者该文件不存在
+        if(!target.exists()){
+            control_pw.println("530 target not exist");//这是文件夹或者该文件不存在
             control_pw.flush();
             return;
         }
 
-        this.target = currentPath +"/"+ targetFile;
-        control_pw.println("200");//重命名第一步，已经瞄准好文件
+        this.target = currentPath + targetFile;
+        control_pw.println("200 target found");//重命名第一步，已经瞄准好文件
         control_pw.flush();
 
     }
@@ -636,8 +719,8 @@ public class Appserver implements Runnable{
             return;
         }
         File target = new File(this.target);
-        if(!target.exists() || target.isDirectory()){
-            control_pw.println("530 target not exist or is dir");
+        if(!target.exists()){
+            control_pw.println("530 target not exist");
             control_pw.flush();
 
             return;
@@ -707,16 +790,18 @@ public class Appserver implements Runnable{
 
 
     public void handleCommand(String command) throws IOException {
+        if(command == null){
+            return;
+        }
         String [] com = command.trim().split(" ");
         System.out.println(command);
-
+        System.out.println("当前目录："+currentPath);
         if(com[0].equals("USER")){
             if(com.length != 2){
                 control_pw.println("500 wrong format");
                 control_pw.flush();
                 return;
             }
-
             this.username=com[1];
             USER(com[1]);
             System.out.println(username);
@@ -746,7 +831,7 @@ public class Appserver implements Runnable{
 
             case "STOR":
                 System.out.println("STOR处理中");
-                //receiveSingleFile(com[1]);
+                loadSingleFile(com[1]);
                 break;
 
             case "PORT":
@@ -757,11 +842,13 @@ public class Appserver implements Runnable{
                 }
                 System.out.println("port处理中");
                 PORT(com[1]);
+
                 break;
 
             case "PASV":
                 System.out.println("pasv处理中");
                 PASV();
+
                 break;
 
             case "TYPE":
@@ -787,12 +874,18 @@ public class Appserver implements Runnable{
                 break;
 
             case "LIST":
-                if(com.length != 2){
-                    control_pw.println("500 wrong format");
-                    control_pw.flush();
+                if(com.length == 1){
+                    System.out.println("root");
+                    LIST("");
                     break;
                 }
-                LIST(com[1]);
+                if(com.length == 2){
+                    LIST(com[1]);
+                    break;
+                }else {
+                    control_pw.println("500 wrong format");
+                    control_pw.flush();
+            }
 //                control_pw.println("200 OK");
 //                control_pw.flush();
                 break;
@@ -817,6 +910,16 @@ public class Appserver implements Runnable{
                     break;
                 }
                 RNFR(com[1]);
+                break;
+
+            case "RETR":
+                if(com.length != 2){
+                    control_pw.println("500 wrong format");
+                    control_pw.flush();
+                    break;
+                }
+
+                sendSingleFile(com[1]);
                 break;
 
             case "RNTO":
